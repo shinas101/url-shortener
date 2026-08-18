@@ -1,7 +1,9 @@
+import { notFound } from "next/navigation";
 import { NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
 import client from "../lib/redis";
 import { recordClick } from "../lib/analytics";
+import { RESERVED_ROUTES } from "../lib/utils";
 
 export async function GET(
     req: Request,
@@ -9,7 +11,12 @@ export async function GET(
 ) {
     const { code } = await params;
 
-    // 1. Check Redis cache
+    // 1. Guard against reserved application routes
+    if (!code || RESERVED_ROUTES.has(code.toLowerCase())) {
+        notFound();
+    }
+
+    // 2. Check Redis cache
     const cached = await client.get(`url:${code}`);
     if (cached) {
         try {
@@ -28,27 +35,27 @@ export async function GET(
         }
     }
 
-    // 2. Query Database
+    // 3. Query Database
     const url = await db.query.Urls.findFirst({
         where: (urls, { eq }) => eq(urls.shortCode, code),
     });
 
-    // 3. Handle non-existent or expired URLs
+    // 4. Handle non-existent or expired URLs
     if (!url) {
-        return NextResponse.redirect(new URL("/not-found", req.url));
+        notFound();
     }
 
     if (url.expireAt && new Date(url.expireAt) < new Date()) {
         await client.del(`url:${code}`);
-        return NextResponse.redirect(new URL("/not-found", req.url));
+        notFound();
     }
 
-    // 4. Handle password-protected URLs
+    // 5. Handle password-protected URLs
     if (url.password) {
         return NextResponse.redirect(new URL(`/unlock/${code}`, req.url));
     }
 
-    // 5. Cache valid unpassworded metadata in Redis
+    // 6. Cache valid unpassworded metadata in Redis
     await client.set(
         `url:${url.shortCode}`,
         JSON.stringify({
@@ -59,7 +66,7 @@ export async function GET(
         { EX: 60 * 60 }
     );
 
-    // 6. Record analytics click
+    // 7. Record analytics click
     await recordClick(url.id, req);
 
     return NextResponse.redirect(url.orginalUrl, 302);
