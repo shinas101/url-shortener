@@ -15,6 +15,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
     title: "URL Shortener - Fast, Secure & Analytics-Driven",
     description: "Generate instant short links with custom aliases, passcode protection, QR codes, and real-time click analytics.",
+    icons: {
+        icon: [
+            { url: "/icon.svg", type: "image/svg+xml" },
+            { url: "/icon.png", type: "image/png" },
+        ],
+        shortcut: "/icon.png",
+        apple: "/icon.png",
+    },
 };
 
 export default function RootLayout({
