@@ -9,11 +9,10 @@ export async function GET(
 ) {
     const { code } = await params;
 
-    // Check Redis cache
+    // 1. Check Redis cache
     const cached = await client.get(`url:${code}`);
     if (cached) {
         try {
-            // Check if cached as JSON metadata
             const parsed = JSON.parse(cached);
             if (parsed && typeof parsed === "object" && parsed.originalUrl) {
                 if (parsed.hasPassword) {
@@ -25,47 +24,31 @@ export async function GET(
                 return NextResponse.redirect(parsed.originalUrl, 302);
             }
         } catch {
-            // Legacy plain string fallback
-            if (typeof cached === "string" && cached.startsWith("http")) {
-                const urlRecord = await db.query.Urls.findFirst({
-                    where: (urls, { eq }) => eq(urls.shortCode, code),
-                });
-                if (urlRecord) {
-                    await recordClick(urlRecord.id, req);
-                    // Upgrade cache
-                    await client.set(
-                        `url:${code}`,
-                        JSON.stringify({
-                            id: urlRecord.id,
-                            originalUrl: urlRecord.orginalUrl,
-                            hasPassword: Boolean(urlRecord.password),
-                        }),
-                        { EX: 60 * 60 }
-                    );
-                }
-                return NextResponse.redirect(cached, 302);
-            }
+            // Fall through to database lookup
         }
     }
 
+    // 2. Query Database
     const url = await db.query.Urls.findFirst({
         where: (urls, { eq }) => eq(urls.shortCode, code),
     });
 
+    // 3. Handle non-existent or expired URLs
     if (!url) {
-        return NextResponse.json(
-            { error: "Short URL not found" },
-            { status: 404 }
-        );
+        return NextResponse.redirect(new URL("/not-found", req.url));
     }
 
+    if (url.expireAt && new Date(url.expireAt) < new Date()) {
+        await client.del(`url:${code}`);
+        return NextResponse.redirect(new URL("/not-found", req.url));
+    }
+
+    // 4. Handle password-protected URLs
     if (url.password) {
-        return NextResponse.redirect(
-            new URL(`/unlock/${code}`, req.url)
-        );
+        return NextResponse.redirect(new URL(`/unlock/${code}`, req.url));
     }
 
-    // Cache metadata in Redis for 1 hour
+    // 5. Cache valid unpassworded metadata in Redis
     await client.set(
         `url:${url.shortCode}`,
         JSON.stringify({
@@ -76,7 +59,7 @@ export async function GET(
         { EX: 60 * 60 }
     );
 
-    // Record the analytics click event
+    // 6. Record analytics click
     await recordClick(url.id, req);
 
     return NextResponse.redirect(url.orginalUrl, 302);

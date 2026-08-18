@@ -70,13 +70,16 @@ export default function UnlockPage() {
                     <span className="font-bold text-lg tracking-tight">URL Shortener</span>
                 </Link>
 
-                <Link
-                    href="/"
-                    className="text-xs font-mono text-zinc-400 hover:text-white flex items-center gap-1.5 transition"
-                >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Home</span>
-                </Link>
+                <div className="flex items-center gap-4 text-xs font-mono text-zinc-400">
+                    <Link href="/docs" className="hover:text-white transition">Docs</Link>
+                    <Link
+                        href="/"
+                        className="hover:text-white flex items-center gap-1.5 transition"
+                    >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <span>Home</span>
+                    </Link>
+                </div>
             </header>
 
             {/* Main Center Card */}
@@ -175,8 +178,22 @@ export default function UnlockPage() {
             </main>
 
             {/* Footer */}
-            <footer className="w-full max-w-5xl mx-auto text-center py-2 text-xs text-zinc-600 font-mono">
-                &copy; {new Date().getFullYear()} URL Shortener. All rights reserved.
+            <footer className="w-full max-w-5xl mx-auto flex items-center justify-between py-2 text-xs text-zinc-600 font-mono">
+                <p>
+                    &copy; {new Date().getFullYear()} URL Shortener &bull; by{" "}
+                    <a
+                        href="https://github.com/shinas101"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-zinc-400 hover:text-white hover:underline transition"
+                    >
+                        shinas101
+                    </a>
+                </p>
+                <div className="flex items-center gap-4">
+                    <Link href="/docs" className="hover:text-zinc-400 transition">Docs</Link>
+                    <Link href="/" className="hover:text-zinc-400 transition">Home</Link>
+                </div>
             </footer>
         </div>
     );

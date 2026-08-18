@@ -2,6 +2,7 @@
 
 import { authClient } from "@/app/lib/auth-client";
 import { useState } from "react";
+import Link from "next/link";
 
 export default function LoginPage() {
     const [isLoading, setIsLoading] = useState(false);
@@ -11,7 +12,7 @@ export default function LoginPage() {
         try {
             await authClient.signIn.social({
                 provider: "google",
-                callbackURL: "/dashboard", // Redirect destination after successful login
+                callbackURL: "/dashboard",
             });
         } catch (error) {
             console.error("Google authentication failed:", error);
@@ -21,14 +22,14 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-black flex items-center justify-center px-5">
-            <div className="w-full max-w-md border border-white bg-black p-8 flex flex-col gap-8">
+        <div className="min-h-screen bg-black flex items-center justify-center px-5 selection:bg-white selection:text-black">
+            <div className="w-full max-w-md border border-white bg-black p-8 flex flex-col gap-8 shadow-2xl">
                 <div className="text-center space-y-2">
                     <h1 className="text-3xl font-bold text-white">
                         Welcome Back
                     </h1>
-                    <p className="text-sm text-zinc-400">
-                        Sign in to access your shortened links and dashboard
+                    <p className="text-sm text-zinc-400 font-mono">
+                        Sign in to access your shortened links, analytics, and settings
                     </p>
                 </div>
 
@@ -46,13 +47,26 @@ export default function LoginPage() {
                     <span>{isLoading ? "Connecting to Google..." : "Continue with Google"}</span>
                 </button>
 
-                <div className="text-center">
-                    <a
-                        href="/"
-                        className="text-zinc-400 hover:text-white text-sm transition"
-                    >
-                        ← Back to URL Shortener
-                    </a>
+                <div className="flex flex-col gap-2 pt-2 border-t border-zinc-900 text-xs font-mono text-zinc-500">
+                    <div className="flex items-center justify-between">
+                        <Link
+                            href="/"
+                            className="hover:text-white transition"
+                        >
+                            ← Return to Home
+                        </Link>
+
+                        <Link
+                            href="/docs"
+                            className="hover:text-white transition"
+                        >
+                            Documentation ➔
+                        </Link>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-600 text-center pt-2">
+                        Created by <a href="https://github.com/shinas101" target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-white hover:underline font-semibold">shinas101</a>
+                    </p>
                 </div>
             </div>
         </div>

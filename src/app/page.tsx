@@ -112,6 +112,13 @@ export default function Home() {
                 </Link>
 
                 <div className="flex items-center gap-3">
+                    <Link
+                        href="/docs"
+                        className="border border-zinc-800 px-3 py-2 text-xs font-mono text-zinc-400 hover:text-white hover:border-zinc-600 transition"
+                    >
+                        Docs
+                    </Link>
+
                     {session?.user ? (
                         <div className="flex items-center gap-3">
                             <Link
@@ -154,15 +161,13 @@ export default function Home() {
             <main className="flex-1 flex items-center justify-center px-4 py-12 z-10">
                 <div className="[perspective:1200px] w-full max-w-md">
                     <div
-                        className={`grid grid-cols-1 w-full duration-700 transition-transform [transform-style:preserve-3d] ${
-                            flipped ? "[transform:rotateY(180deg)]" : ""
-                        }`}
+                        className={`grid grid-cols-1 w-full duration-700 transition-transform [transform-style:preserve-3d] ${flipped ? "[transform:rotateY(180deg)]" : ""
+                            }`}
                     >
                         {/* Front Side: Input Form */}
                         <div
-                            className={`col-start-1 row-start-1 w-full border border-white bg-black p-8 flex flex-col justify-between gap-6 shadow-2xl [backface-visibility:hidden] ${
-                                flipped ? "pointer-events-none" : ""
-                            }`}
+                            className={`col-start-1 row-start-1 w-full border border-white bg-black p-8 flex flex-col justify-between gap-6 shadow-2xl [backface-visibility:hidden] ${flipped ? "pointer-events-none" : ""
+                                }`}
                         >
                             <div className="space-y-2 text-center">
                                 <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
@@ -249,21 +254,20 @@ export default function Home() {
 
                             <div className="pt-2 border-t border-zinc-800 text-center">
                                 <p className="text-[11px] text-zinc-500 font-mono">
-                                    ⚡ Free & Instant &bull; QR Code Included &bull; Real-Time Analytics
+                                    Free & Instant &bull; QR Code Included &bull; Real-Time Analytics
                                 </p>
                             </div>
                         </div>
 
                         {/* Back Side: Result & QR */}
                         <div
-                            className={`col-start-1 row-start-1 w-full border border-white bg-black p-6 sm:p-8 flex flex-col justify-between items-center text-center [transform:rotateY(180deg)] [backface-visibility:hidden] shadow-2xl gap-4 ${
-                                !flipped ? "pointer-events-none" : ""
-                            }`}
+                            className={`col-start-1 row-start-1 w-full border border-white bg-black p-6 sm:p-8 flex flex-col justify-between items-center text-center [transform:rotateY(180deg)] [backface-visibility:hidden] shadow-2xl gap-4 ${!flipped ? "pointer-events-none" : ""
+                                }`}
                         >
                             <div className="space-y-1">
                                 <h2 className="text-2xl sm:text-3xl font-bold text-white flex items-center justify-center gap-2">
                                     <Sparkles className="w-5 h-5 text-white" />
-                                    Link Ready ✨
+                                    Link Ready
                                 </h2>
                                 <p className="text-xs text-zinc-400 font-mono">
                                     Your shortened URL & QR code are generated
@@ -288,11 +292,10 @@ export default function Home() {
                                 <button
                                     type="button"
                                     onClick={handleCopy}
-                                    className={`flex-1 border py-2.5 px-3 text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                                        copied
+                                    className={`flex-1 border py-2.5 px-3 text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${copied
                                             ? "border-emerald-500 bg-emerald-950/40 text-emerald-400"
                                             : "border-zinc-600 text-white hover:bg-white hover:text-black"
-                                    }`}
+                                        }`}
                                 >
                                     {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                                     <span>{copied ? "Copied ✓" : "Copy"}</span>
@@ -334,8 +337,19 @@ export default function Home() {
 
             {/* Footer */}
             <footer className="w-full max-w-6xl mx-auto px-6 py-6 border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500 font-mono z-20">
-                <p>&copy; {new Date().getFullYear()} URL Shortener. All rights reserved.</p>
+                <p>
+                    &copy; {new Date().getFullYear()} URL Shortener &bull; Created with 🖤 by{" "}
+                    <a
+                        href="https://github.com/shinas101"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-zinc-300 hover:text-white hover:underline transition font-semibold"
+                    >
+                        shinas101
+                    </a>
+                </p>
                 <div className="flex items-center gap-6">
+                    <Link href="/docs" className="hover:text-zinc-300 transition">Docs</Link>
                     <Link href="/dashboard" className="hover:text-zinc-300 transition">Dashboard</Link>
                     <Link href="/login" className="hover:text-zinc-300 transition">Account</Link>
                 </div>

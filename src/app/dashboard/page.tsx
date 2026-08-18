@@ -318,6 +318,13 @@ export default function DashboardPage() {
                     </Link>
 
                     <div className="flex items-center gap-4">
+                        <Link
+                            href="/docs"
+                            className="border border-zinc-800 px-3 py-1.5 text-xs font-mono text-zinc-400 hover:text-white hover:border-zinc-600 transition"
+                        >
+                            Docs
+                        </Link>
+
                         <div className="hidden sm:flex items-center gap-3 border border-zinc-800 px-3 py-1.5 bg-zinc-950">
                             {session.user.image ? (
                                 <img
@@ -1138,6 +1145,24 @@ export default function DashboardPage() {
                     </div>
                 </div>
             )}
+            {/* Footer */}
+            <footer className="max-w-6xl mx-auto px-6 py-8 border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500 font-mono mt-12">
+                <p>
+                    &copy; {new Date().getFullYear()} URL Shortener &bull; Created with 🖤 by{" "}
+                    <a
+                        href="https://github.com/shinas101"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-zinc-300 hover:text-white hover:underline transition font-semibold"
+                    >
+                        shinas101
+                    </a>
+                </p>
+                <div className="flex items-center gap-6">
+                    <Link href="/" className="hover:text-zinc-300 transition">Home</Link>
+                    <Link href="/docs" className="hover:text-zinc-300 transition">Docs</Link>
+                </div>
+            </footer>
         </div>
     );
 }
