@@ -1,17 +1,27 @@
-import { createClient } from 'redis';
+import { createClient } from "redis";
 
-const client = createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
-});
+const globalForRedis = globalThis as unknown as {
+    redisClient: ReturnType<typeof createClient> | undefined;
+};
 
-client.on('error', (err) => {
-    console.error('Redis error:', err);
-});
+const client =
+    globalForRedis.redisClient ??
+    createClient({
+        url: process.env.REDIS_URL || "redis://localhost:6379",
+        pingInterval: 30000,
+        socket: {
+            keepAlive: true,
+            connectTimeout: 10000,
+            reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
+        },
+    });
 
-client.on('connect', () => {
-    console.log('Redis connected');
-});
+if (!client.isOpen) {
+    client.connect().catch((err) => console.error("Redis connection error:", err));
+}
 
-await client.connect();
+if (process.env.NODE_ENV !== "production") {
+    globalForRedis.redisClient = client;
+}
 
 export default client;

@@ -23,42 +23,71 @@ async function main() {
     // ------------------------
     // Users
     // ------------------------
-    const [user] = await db
+    const [user1] = await db
         .insert(Users)
         .values({
+            id: uuid(),
             name: "Shinas",
-            apiKey: uuid(),
+            email: "shinas@example.com",
+            apiKey: "4a5413de3c326d2cdfca09e86cc90667c2f580fb25b1bfc6710d3bb283470cf7",
+            emailVerified: true,
         })
         .returning();
 
-    console.log("✅ User created");
+    const [user2] = await db
+        .insert(Users)
+        .values({
+            id: uuid(),
+            name: "Demo User",
+            email: "demo@example.com",
+            apiKey: uuid(),
+            emailVerified: true,
+        })
+        .returning();
+
+    console.log("✅ Users created (including default frontend API key user)");
 
     // ------------------------
     // URLs
     // ------------------------
     const url1Id = uuid();
     const url2Id = uuid();
+    const url3Id = uuid();
+    const url4Id = uuid();
 
-    const urls = await db
+    await db
         .insert(Urls)
         .values([
             {
                 id: url1Id,
-                shortCode: "abc123",
+                shortCode: "google1",
                 orginalUrl: "https://google.com",
-                userId: user.userId,
+                userId: user1.id,
             },
             {
                 id: url2Id,
-                shortCode: "xyz789",
+                shortCode: "github2",
                 orginalUrl: "https://github.com",
                 password: "1234",
-                userId: user.userId,
+                userId: user1.id,
+            },
+            {
+                id: url3Id,
+                shortCode: "nextjs3",
+                orginalUrl: "https://nextjs.org",
+                userId: user1.id,
+                expireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            },
+            {
+                id: url4Id,
+                shortCode: "drizzle4",
+                orginalUrl: "https://orm.drizzle.team",
+                userId: user2.id,
             },
         ])
         .returning();
 
-    console.log("✅ URLs created");
+    console.log("✅ URLs created (regular, password-protected, and expiring)");
 
     // ------------------------
     // Analytics
@@ -69,25 +98,46 @@ async function main() {
             urlId: url1Id,
             country: "IN",
             device: "Desktop",
-            referrer: "https://google.com",
+            referer: "https://google.com",
         },
         {
             id: uuid(),
             urlId: url1Id,
             country: "US",
             device: "Mobile",
-            referrer: "https://twitter.com",
+            referer: "https://x.com",
+        },
+        {
+            id: uuid(),
+            urlId: url1Id,
+            country: "DE",
+            device: "Desktop",
+            referer: "direct",
         },
         {
             id: uuid(),
             urlId: url2Id,
             country: "GB",
             device: "Tablet",
-            referrer: "https://linkedin.com",
+            referer: "https://linkedin.com",
+        },
+        {
+            id: uuid(),
+            urlId: url2Id,
+            country: "US",
+            device: "Desktop",
+            referer: "https://github.com",
+        },
+        {
+            id: uuid(),
+            urlId: url3Id,
+            country: "JP",
+            device: "Mobile",
+            referer: "https://reddit.com",
         },
     ]);
 
-    console.log("✅ Analytics created");
+    console.log("✅ Analytics records created");
     console.log("🎉 Database seeded successfully!");
 }
 

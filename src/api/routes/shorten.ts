@@ -1,82 +1,95 @@
 import { Hono } from "hono";
 import { db } from "@/app/lib/db";
-import { Urls, Users } from "@/db/schema";
-import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
-import { randomBytes, randomUUID } from "crypto";
-import { and, eq } from "drizzle-orm";
-
-
-
-const CHARSET =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-function generateCode(length = 7): string {
-    const bytes = randomBytes(length);
-    let code = "";
-
-    for (let i = 0; i < length; i++) {
-        code += CHARSET[bytes[i] % CHARSET.length];
-    }
-
-    return code;
-}
-
+import { Urls } from "@/db/schema";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
+import { randomUUID } from "crypto";
+import client from "@/app/lib/redis";
+import { auth } from "@/app/lib/auth";
+import { generateShortCode } from "@/app/lib/utils";
 
 export const shortenRoute = new Hono();
 
 const shortenSchema = z.object({
-    apiKey: z.string().min(4, { message: 'Not a valid api key' }),
-    url: z.string().url({ message: 'enter a valid string' }),
+    apiKey: z.string().optional(),
+    url: z.string().url({ message: "Enter a valid URL" }),
     pass: z.string().optional(),
     expireAt: z.coerce.date().optional(),
 });
 
+shortenRoute.post("/", zValidator("json", shortenSchema), async (c) => {
+    const { apiKey, url, pass, expireAt } = c.req.valid("json");
 
+    let userId: string | null = null;
 
-
-shortenRoute.post('/', zValidator('json', shortenSchema), async (c) => {
-    const { apiKey, url } = c.req.valid('json');
-
-    const user = await db.query.Users.findFirst({ where: (Users, { eq }) => eq(Users.apiKey, apiKey) });
-    if (!user) {
-        return c.json({ error: 'Not a valid api key' });
+    try {
+        const session = await auth.api.getSession({
+            headers: c.req.raw.headers,
+        });
+        if (session?.user?.id) {
+            userId = session.user.id;
+        }
+    } catch {
+        // Guest user fallback
     }
-    const existingUrl = await db.query.Urls.findFirst({
-        where: (urls) =>
-            and(
-                eq(urls.orginalUrl, url),
-                eq(urls.userId, user.userId)
-            ),
-    });
+
+    if (!userId && apiKey) {
+        const user = await db.query.Users.findFirst({
+            where: (users, { eq }) => eq(users.apiKey, apiKey),
+        });
+        if (user) {
+            userId = user.id;
+        }
+    }
+
     const baseUrl = new URL(c.req.url).origin;
-    if (existingUrl) {
-        return c.json(
-            {
-                id: existingUrl.id,
-                shortCode: existingUrl.shortCode,
+
+    // Generate unique short code
+    let shortCode = generateShortCode();
+    while (
+        await db.query.Urls.findFirst({
+            where: (urls, { eq }) => eq(urls.shortCode, shortCode),
+        })
+    ) {
+        shortCode = generateShortCode();
+    }
+
+    const uuid = randomUUID();
+    const hasPassword = Boolean(pass && pass.trim().length > 0);
+    const cleanPassword = hasPassword ? pass!.trim() : null;
+
+    await db.insert(Urls).values({
+        id: uuid,
+        shortCode,
+        orginalUrl: url,
+        userId,
+        password: cleanPassword,
+        expireAt: expireAt || null,
+    });
+
+    // Cache unpassworded links in Redis for fast direct redirects
+    if (!hasPassword) {
+        await client.set(
+            `url:${shortCode}`,
+            JSON.stringify({
+                id: uuid,
                 originalUrl: url,
-                shortUrl: `${baseUrl}/${existingUrl.shortCode}`,
-            },
-            201
+                hasPassword: false,
+            }),
+            { EX: 60 * 60 }
         );
     }
-    let shortCode = generateCode(7);
-    while (await db.query.Urls.findFirst({ where: (urls, { eq }) => eq(urls.shortCode, shortCode) })) {
-        shortCode = generateCode(7);
-    }
-    let uuid = randomUUID();
-    await db.insert(Urls).values({ id: uuid, shortCode: shortCode, orginalUrl: url, userId: user.userId });
 
     return c.json(
         {
             id: uuid,
             shortCode,
             originalUrl: url,
+            hasPassword,
             shortUrl: `${baseUrl}/${shortCode}`,
         },
         201
     );
 });
 
-export default shortenRoute
+export default shortenRoute;
