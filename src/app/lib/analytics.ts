@@ -1,5 +1,6 @@
 import { db } from "@/app/lib/db";
 import { Analytics } from "@/db/schema";
+import client from "@/app/lib/redis";
 
 /**
  * In-memory IP-to-Country cache to avoid duplicate lookups.
@@ -41,6 +42,32 @@ function getHeader(reqOrHeaders: unknown, name: string): string | null {
     }
 
     return null;
+}
+
+/**
+ * Detects if the request is a speculative browser or Next.js router prefetch.
+ */
+export function isPrefetch(reqOrHeaders: unknown): boolean {
+    const purpose =
+        getHeader(reqOrHeaders, "purpose") ||
+        getHeader(reqOrHeaders, "sec-purpose") ||
+        getHeader(reqOrHeaders, "x-purpose");
+
+    if (purpose && purpose.toLowerCase().includes("prefetch")) {
+        return true;
+    }
+
+    const nextPrefetch = getHeader(reqOrHeaders, "next-router-prefetch");
+    if (nextPrefetch === "1" || nextPrefetch === "true") {
+        return true;
+    }
+
+    const secFetchDest = getHeader(reqOrHeaders, "sec-fetch-dest");
+    if (secFetchDest === "image" || secFetchDest === "script") {
+        return true;
+    }
+
+    return false;
 }
 
 /**
@@ -170,13 +197,34 @@ export async function extractCountry(reqOrHeaders: unknown): Promise<string | nu
 
 /**
  * Records a click event in the Analytics table.
- * Wrapped in try/catch so analytics logging never fails the redirect request.
+ * Includes prefetch filtering and a 2-second Redis debounce lock
+ * to prevent double-counting from browser pre-renders or duplicate requests.
  */
 export async function recordClick(urlId: string, reqOrHeaders: unknown): Promise<void> {
     try {
-        const userAgent = getHeader(reqOrHeaders, "user-agent") || null;
-        const refererHeader = getHeader(reqOrHeaders, "referer") || getHeader(reqOrHeaders, "referrer") || null;
+        // 1. Skip speculative prefetch requests
+        if (isPrefetch(reqOrHeaders)) {
+            return;
+        }
 
+        const userAgent = getHeader(reqOrHeaders, "user-agent") || null;
+        const ip = extractClientIp(reqOrHeaders) || "anon";
+
+        // 2. 2-second Redis debounce lock per URL + visitor fingerprint
+        const uaShort = userAgent ? userAgent.substring(0, 40) : "none";
+        const lockKey = `click_lock:${urlId}:${ip}:${uaShort}`;
+
+        try {
+            const isNew = await client.set(lockKey, "1", { NX: true, EX: 2 });
+            if (!isNew) {
+                // Duplicate request arrived within 2 seconds
+                return;
+            }
+        } catch {
+            // If Redis lock check fails, proceed with record
+        }
+
+        const refererHeader = getHeader(reqOrHeaders, "referer") || getHeader(reqOrHeaders, "referrer") || null;
         const device = parseDevice(userAgent);
         const os = parseOS(userAgent);
         const referer = parseReferer(refererHeader);
