@@ -7,13 +7,40 @@ import { Analytics } from "@/db/schema";
 const ipCountryCache = new Map<string, string>();
 
 /**
- * Helper to retrieve a header value from either a Request or Headers object.
+ * Safe helper to retrieve a header value from Request, Headers, ReadonlyHeaders, or plain objects.
  */
-function getHeader(reqOrHeaders: Request | Headers, name: string): string | null {
-    if ("headers" in reqOrHeaders) {
-        return reqOrHeaders.headers.get(name);
+function getHeader(reqOrHeaders: unknown, name: string): string | null {
+    if (!reqOrHeaders) return null;
+
+    const lowerName = name.toLowerCase();
+
+    // 1. Direct .get() method (Headers, ReadonlyHeaders, Map, URLSearchParams)
+    const asGet = reqOrHeaders as { get?: (k: string) => string | null };
+    if (typeof asGet.get === "function") {
+        return asGet.get(name) ?? asGet.get(lowerName) ?? null;
     }
-    return reqOrHeaders.get(name);
+
+    // 2. Request-like object with .headers
+    const asReq = reqOrHeaders as { headers?: unknown };
+    if (asReq.headers) {
+        const h = asReq.headers as { get?: (k: string) => string | null; [k: string]: unknown };
+        if (typeof h.get === "function") {
+            return h.get(name) ?? h.get(lowerName) ?? null;
+        }
+        if (typeof h === "object" && h !== null) {
+            const val = (h as Record<string, unknown>)[name] ?? (h as Record<string, unknown>)[lowerName];
+            return typeof val === "string" ? val : null;
+        }
+    }
+
+    // 3. Plain header dictionary { 'user-agent': '...' }
+    if (typeof reqOrHeaders === "object" && reqOrHeaders !== null) {
+        const dict = reqOrHeaders as Record<string, unknown>;
+        const val = dict[name] ?? dict[lowerName];
+        return typeof val === "string" ? val : null;
+    }
+
+    return null;
 }
 
 /**
@@ -81,7 +108,7 @@ export function parseReferer(ref: string | null): string {
 /**
  * Extracts client IP address from proxy / reverse-proxy request headers.
  */
-export function extractClientIp(reqOrHeaders: Request | Headers): string | null {
+export function extractClientIp(reqOrHeaders: unknown): string | null {
     const forwardedFor = getHeader(reqOrHeaders, "x-forwarded-for");
     if (forwardedFor) {
         const ip = forwardedFor.split(",")[0].trim();
@@ -101,7 +128,7 @@ export function extractClientIp(reqOrHeaders: Request | Headers): string | null 
  * 1. Checks CDN/Proxy Edge headers (Cloudflare, Vercel, CloudFront).
  * 2. Falls back to cached IP lookup with non-blocking timeout.
  */
-export async function extractCountry(reqOrHeaders: Request | Headers): Promise<string | null> {
+export async function extractCountry(reqOrHeaders: unknown): Promise<string | null> {
     const cdnCountry =
         getHeader(reqOrHeaders, "cf-ipcountry") ||
         getHeader(reqOrHeaders, "x-vercel-ip-country") ||
@@ -145,7 +172,7 @@ export async function extractCountry(reqOrHeaders: Request | Headers): Promise<s
  * Records a click event in the Analytics table.
  * Wrapped in try/catch so analytics logging never fails the redirect request.
  */
-export async function recordClick(urlId: string, reqOrHeaders: Request | Headers): Promise<void> {
+export async function recordClick(urlId: string, reqOrHeaders: unknown): Promise<void> {
     try {
         const userAgent = getHeader(reqOrHeaders, "user-agent") || null;
         const refererHeader = getHeader(reqOrHeaders, "referer") || getHeader(reqOrHeaders, "referrer") || null;
