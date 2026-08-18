@@ -7,6 +7,16 @@ import { Analytics } from "@/db/schema";
 const ipCountryCache = new Map<string, string>();
 
 /**
+ * Helper to retrieve a header value from either a Request or Headers object.
+ */
+function getHeader(reqOrHeaders: Request | Headers, name: string): string | null {
+    if ("headers" in reqOrHeaders) {
+        return reqOrHeaders.headers.get(name);
+    }
+    return reqOrHeaders.get(name);
+}
+
+/**
  * Parses user agent string to determine the device category.
  */
 export function parseDevice(ua: string | null): "Desktop" | "Mobile" | "Tablet" | "Bot" {
@@ -53,7 +63,6 @@ export function parseReferer(ref: string | null): string {
         const url = new URL(ref);
         let hostname = url.hostname.toLowerCase().replace(/^www\./, "");
 
-        // Friendly domain names for common platforms
         if (hostname.includes("google.")) return "Google";
         if (hostname.includes("twitter.com") || hostname.includes("t.co") || hostname.includes("x.com")) return "X / Twitter";
         if (hostname.includes("linkedin.com") || hostname.includes("lnkd.in")) return "LinkedIn";
@@ -72,16 +81,16 @@ export function parseReferer(ref: string | null): string {
 /**
  * Extracts client IP address from proxy / reverse-proxy request headers.
  */
-export function extractClientIp(req: Request): string | null {
-    const forwardedFor = req.headers.get("x-forwarded-for");
+export function extractClientIp(reqOrHeaders: Request | Headers): string | null {
+    const forwardedFor = getHeader(reqOrHeaders, "x-forwarded-for");
     if (forwardedFor) {
         const ip = forwardedFor.split(",")[0].trim();
         if (ip) return ip;
     }
-    const realIp = req.headers.get("x-real-ip");
+    const realIp = getHeader(reqOrHeaders, "x-real-ip");
     if (realIp) return realIp.trim();
 
-    const cfIp = req.headers.get("cf-connecting-ip");
+    const cfIp = getHeader(reqOrHeaders, "cf-connecting-ip");
     if (cfIp) return cfIp.trim();
 
     return null;
@@ -92,21 +101,19 @@ export function extractClientIp(req: Request): string | null {
  * 1. Checks CDN/Proxy Edge headers (Cloudflare, Vercel, CloudFront).
  * 2. Falls back to cached IP lookup with non-blocking timeout.
  */
-export async function extractCountry(req: Request): Promise<string | null> {
-    // 1. CDN / Edge headers (Instant, 0ms)
+export async function extractCountry(reqOrHeaders: Request | Headers): Promise<string | null> {
     const cdnCountry =
-        req.headers.get("cf-ipcountry") ||
-        req.headers.get("x-vercel-ip-country") ||
-        req.headers.get("cloudfront-viewer-country") ||
-        req.headers.get("x-country-code") ||
-        req.headers.get("x-country");
+        getHeader(reqOrHeaders, "cf-ipcountry") ||
+        getHeader(reqOrHeaders, "x-vercel-ip-country") ||
+        getHeader(reqOrHeaders, "cloudfront-viewer-country") ||
+        getHeader(reqOrHeaders, "x-country-code") ||
+        getHeader(reqOrHeaders, "x-country");
 
     if (cdnCountry && cdnCountry !== "XX" && cdnCountry.length <= 3) {
         return cdnCountry.toUpperCase();
     }
 
-    // 2. IP lookup for self-hosted / local environments
-    const ip = extractClientIp(req);
+    const ip = extractClientIp(reqOrHeaders);
     if (!ip || ip === "127.0.0.1" || ip === "::1" || ip.startsWith("192.168.") || ip.startsWith("10.")) {
         return null;
     }
@@ -117,7 +124,7 @@ export async function extractCountry(req: Request): Promise<string | null> {
 
     try {
         const res = await fetch(`https://api.country.is/${ip}`, {
-            signal: AbortSignal.timeout(1000), // 1-second max timeout so it never blocks
+            signal: AbortSignal.timeout(1000),
         });
         if (res.ok) {
             const data = await res.json();
@@ -128,7 +135,7 @@ export async function extractCountry(req: Request): Promise<string | null> {
             }
         }
     } catch {
-        // Silently fallback if IP service is unreachable
+        // Silently fallback if IP lookup is unreachable
     }
 
     return null;
@@ -138,15 +145,15 @@ export async function extractCountry(req: Request): Promise<string | null> {
  * Records a click event in the Analytics table.
  * Wrapped in try/catch so analytics logging never fails the redirect request.
  */
-export async function recordClick(urlId: string, req: Request): Promise<void> {
+export async function recordClick(urlId: string, reqOrHeaders: Request | Headers): Promise<void> {
     try {
-        const userAgent = req.headers.get("user-agent") || null;
-        const refererHeader = req.headers.get("referer") || req.headers.get("referrer") || null;
+        const userAgent = getHeader(reqOrHeaders, "user-agent") || null;
+        const refererHeader = getHeader(reqOrHeaders, "referer") || getHeader(reqOrHeaders, "referrer") || null;
 
         const device = parseDevice(userAgent);
         const os = parseOS(userAgent);
         const referer = parseReferer(refererHeader);
-        const country = await extractCountry(req);
+        const country = await extractCountry(reqOrHeaders);
 
         await db.insert(Analytics).values({
             urlId,

@@ -1,20 +1,23 @@
-import { notFound } from "next/navigation";
-import { NextResponse } from "next/server";
+import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { db } from "@/app/lib/db";
-import client from "../lib/redis";
-import { recordClick } from "../lib/analytics";
-import { RESERVED_ROUTES } from "../lib/utils";
+import client from "@/app/lib/redis";
+import { recordClick } from "@/app/lib/analytics";
+import { RESERVED_ROUTES } from "@/app/lib/utils";
 
-export async function GET(
-    req: Request,
-    { params }: { params: Promise<{ code: string }> }
-) {
+export default async function ShortCodeRedirectPage({
+    params,
+}: {
+    params: Promise<{ code: string }>;
+}) {
     const { code } = await params;
 
     // 1. Guard against reserved application routes
     if (!code || RESERVED_ROUTES.has(code.toLowerCase())) {
         notFound();
     }
+
+    const reqHeaders = await headers();
 
     // 2. Check Redis cache
     const cached = await client.get(`url:${code}`);
@@ -23,12 +26,12 @@ export async function GET(
             const parsed = JSON.parse(cached);
             if (parsed && typeof parsed === "object" && parsed.originalUrl) {
                 if (parsed.hasPassword) {
-                    return NextResponse.redirect(new URL(`/unlock/${code}`, req.url));
+                    redirect(`/unlock/${code}`);
                 }
                 if (parsed.id) {
-                    await recordClick(parsed.id, req);
+                    await recordClick(parsed.id, reqHeaders);
                 }
-                return NextResponse.redirect(parsed.originalUrl, 302);
+                redirect(parsed.originalUrl);
             }
         } catch {
             // Fall through to database lookup
@@ -52,10 +55,10 @@ export async function GET(
 
     // 5. Handle password-protected URLs
     if (url.password) {
-        return NextResponse.redirect(new URL(`/unlock/${code}`, req.url));
+        redirect(`/unlock/${code}`);
     }
 
-    // 6. Cache valid unpassworded metadata in Redis
+    // 6. Cache in Redis
     await client.set(
         `url:${url.shortCode}`,
         JSON.stringify({
@@ -67,7 +70,8 @@ export async function GET(
     );
 
     // 7. Record analytics click
-    await recordClick(url.id, req);
+    await recordClick(url.id, reqHeaders);
 
-    return NextResponse.redirect(url.orginalUrl, 302);
+    // 8. Perform redirect
+    redirect(url.orginalUrl);
 }
