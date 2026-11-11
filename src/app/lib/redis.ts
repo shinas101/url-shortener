@@ -4,7 +4,12 @@ const globalForRedis = globalThis as unknown as {
     redisClient: ReturnType<typeof createClient> | undefined;
 };
 
-const redisUrl = process.env.REDIS_URL?.trim() || "redis://localhost:6379";
+let redisUrl = process.env.REDIS_URL?.trim() || "redis://localhost:6379";
+
+// Automatically enforce rediss:// for Upstash (Upstash on port 6379 mandates TLS)
+if (redisUrl.startsWith("redis://") && redisUrl.includes("upstash.io")) {
+    redisUrl = redisUrl.replace(/^redis:\/\//, "rediss://");
+}
 
 const client =
     globalForRedis.redisClient ??
@@ -18,12 +23,16 @@ const client =
         },
     });
 
+client.on("error", (err) => {
+    // Avoid unhandled error crashes during transient socket closures in serverless
+    console.error("Redis Socket Warning:", err?.message || err);
+});
+
 if (!client.isOpen) {
     client.connect().catch((err) => console.error("Redis connection error:", err));
 }
 
-if (process.env.NODE_ENV !== "production") {
-    globalForRedis.redisClient = client;
-}
+// Reuse connection across warm invocations in serverless environments
+globalForRedis.redisClient = client;
 
 export default client;

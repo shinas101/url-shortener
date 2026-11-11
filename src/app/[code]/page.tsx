@@ -20,7 +20,13 @@ export default async function ShortCodeRedirectPage({
     const reqHeaders = await headers();
 
     // 2. Check Redis cache
-    const cached = await client.get(`url:${code}`);
+    let cached: string | null = null;
+    try {
+        cached = await client.get(`url:${code}`);
+    } catch (err) {
+        console.error("Failed to get cached link from Redis:", err);
+    }
+
     if (cached) {
         try {
             const parsed = JSON.parse(cached);
@@ -33,7 +39,11 @@ export default async function ShortCodeRedirectPage({
                 }
                 redirect(parsed.originalUrl);
             }
-        } catch {
+        } catch (err) {
+            // Re-throw Next.js redirects
+            if (err && typeof err === "object" && "digest" in err) {
+                throw err;
+            }
             // Fall through to database lookup
         }
     }
@@ -49,7 +59,11 @@ export default async function ShortCodeRedirectPage({
     }
 
     if (url.expireAt && new Date(url.expireAt) < new Date()) {
-        await client.del(`url:${code}`);
+        try {
+            await client.del(`url:${code}`);
+        } catch (err) {
+            console.error("Failed to delete expired key from Redis:", err);
+        }
         notFound();
     }
 
@@ -59,15 +73,19 @@ export default async function ShortCodeRedirectPage({
     }
 
     // 6. Cache in Redis
-    await client.set(
-        `url:${url.shortCode}`,
-        JSON.stringify({
-            id: url.id,
-            originalUrl: url.orginalUrl,
-            hasPassword: false,
-        }),
-        { EX: 60 * 60 }
-    );
+    try {
+        await client.set(
+            `url:${url.shortCode}`,
+            JSON.stringify({
+                id: url.id,
+                originalUrl: url.orginalUrl,
+                hasPassword: false,
+            }),
+            { EX: 60 * 60 }
+        );
+    } catch (err) {
+        console.error("Failed to cache link in Redis:", err);
+    }
 
     // 7. Record analytics click
     await recordClick(url.id, reqHeaders);

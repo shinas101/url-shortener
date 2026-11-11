@@ -96,15 +96,19 @@ export async function POST(req: Request) {
 
         // Cache in Redis for unpassworded links
         if (!password) {
-            await client.set(
-                `url:${shortCode}`,
-                JSON.stringify({
-                    id: linkId,
-                    originalUrl: url,
-                    hasPassword: false,
-                }),
-                { EX: 60 * 60 }
-            );
+            try {
+                await client.set(
+                    `url:${shortCode}`,
+                    JSON.stringify({
+                        id: linkId,
+                        originalUrl: url,
+                        hasPassword: false,
+                    }),
+                    { EX: 60 * 60 }
+                );
+            } catch (redisErr) {
+                console.error("Failed to cache link in Redis:", redisErr);
+            }
         }
 
         return NextResponse.json(

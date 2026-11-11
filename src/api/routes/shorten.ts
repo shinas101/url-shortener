@@ -69,15 +69,19 @@ shortenRoute.post("/", zValidator("json", shortenSchema), async (c) => {
 
     // Cache unpassworded links in Redis for fast direct redirects
     if (!hasPassword) {
-        await client.set(
-            `url:${shortCode}`,
-            JSON.stringify({
-                id: uuid,
-                originalUrl: url,
-                hasPassword: false,
-            }),
-            { EX: 60 * 60 }
-        );
+        try {
+            await client.set(
+                `url:${shortCode}`,
+                JSON.stringify({
+                    id: uuid,
+                    originalUrl: url,
+                    hasPassword: false,
+                }),
+                { EX: 60 * 60 }
+            );
+        } catch (redisError) {
+            console.error("Failed to cache link in Redis:", redisError);
+        }
     }
 
     return c.json(
