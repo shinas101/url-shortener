@@ -4,10 +4,12 @@ const globalForRedis = globalThis as unknown as {
     redisClient: ReturnType<typeof createClient> | undefined;
 };
 
+const redisUrl = process.env.REDIS_URL?.trim() || "redis://localhost:6379";
+
 const client =
     globalForRedis.redisClient ??
     createClient({
-        url: process.env.REDIS_URL || "redis://localhost:6379",
+        url: redisUrl,
         pingInterval: 30000,
         socket: {
             keepAlive: true,
